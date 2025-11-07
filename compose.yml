@@ -1,0 +1,8 @@
+services:
+  mercury-mcp-server:
+    build: .
+    ports:
+      - 9236:9236
+    environment:
+      - MCP_API_KEY=${MCP_API_KEY?required}
+      - MERCURY_API_KEY=${MERCURY_API_KEY?required}
