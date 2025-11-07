@@ -1,4 +1,5 @@
 # Mercury MCP Server
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/YJTSJD?referralCode=Yzpg-O&utm_medium=integration&utm_source=template&utm_campaign=generic)  
 
 MCP Server for Mercury Banking API. Supports both stdio (for Docker) and HTTP transports.
 
