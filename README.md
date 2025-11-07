@@ -50,6 +50,20 @@ bun start
 
 The server auto-detects which mode to use based on whether stdin is a tty.
 
+To use the server in Cursor:
+```json
+{
+  "mcpServers": {
+    "mercury": {
+      "url": "https://whatever.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer MCP_API_KEY"
+      }
+    }
+  }
+}
+```
+
 ## Tools
 
 - `list-accounts` - list all mercury accounts
