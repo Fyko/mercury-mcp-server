@@ -6,19 +6,20 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 export class SSETransport implements Transport {
-	#sessionId: string = Bun.randomUUIDv7();
+	readonly #sessionId = Bun.randomUUIDv7();
+	readonly #encoder = new TextEncoder();
+	readonly #endpoint: string;
 	#connected = false;
-	#encoder = new TextEncoder();
-	readonly stream: ReadableStream<Uint8Array>
 	#controller!: ReadableStreamDefaultController<Uint8Array>;
+
+	readonly stream: ReadableStream<Uint8Array>;
 
 	onclose?: () => void;
 	onerror?: (error: Error) => void;
 	onmessage?: (message: JSONRPCMessage) => void;
 
-	constructor(
-		private _endpoint: string,
-	) {
+	constructor(endpoint: string) {
+		this.#endpoint = endpoint;
 		this.stream = new ReadableStream({
 			start: (controller) => {
 				this.#controller = controller;
@@ -33,26 +34,21 @@ export class SSETransport implements Transport {
 		try {
 			this.#connected = true;
 
-			this._sendEvent(
+			this.#sendEvent(
 				"endpoint",
-				`${encodeURI(this._endpoint)}?sessionId=${this.#sessionId}`,
+				`${encodeURI(this.#endpoint)}?sessionId=${this.#sessionId}`,
 			);
 		} catch (error) {
-			console.error(
-				`[Transport:${this.#sessionId}] Error starting transport:`,
-				error,
-			);
 			this.#connected = false;
-			this.onerror?.(error instanceof Error ? error : new Error(String(error)));
+			this.#logError("error starting transport", error);
+			this.#handleError(error);
 			throw error;
 		}
 	}
 
-	private _sendEvent(event: string, data: string): void {
+	#sendEvent(event: string, data: string): void {
 		if (!this.#connected) {
-			console.error(
-				`[Transport:${this.#sessionId}] Cannot send event, not connected`,
-			);
+			this.#logError("cannot send event, not connected");
 			return;
 		}
 
@@ -61,20 +57,17 @@ export class SSETransport implements Transport {
 				this.#encoder.encode(`event: ${event}\ndata: ${data}\n\n`),
 			);
 		} catch (error) {
-			console.error(
-				`[Transport:${this.#sessionId}] Error sending event:`,
-				error,
-			);
 			this.#connected = false;
-			this.onerror?.(error instanceof Error ? error : new Error(String(error)));
+			this.#logError("error sending event", error);
+			this.#handleError(error);
 		}
 	}
 
 	async handlePostMessage(body: JSONRPCMessage): Promise<Response> {
 		if (!this.#connected) {
-			console.error(`[Transport:${this.#sessionId}] Not connected`);
+			this.#logError("not connected");
 			return new Response(
-				JSON.stringify({ error: "SSE connection not established" }),
+				JSON.stringify({ error: "sse connection not established" }),
 				{
 					status: 500,
 					headers: { "content-type": "application/json" },
@@ -90,10 +83,7 @@ export class SSETransport implements Transport {
 				headers: { "content-type": "application/json" },
 			});
 		} catch (error) {
-			console.error(
-				`[Transport:${this.#sessionId}] Error handling message:`,
-				error,
-			);
+			this.#logError("error handling message", error);
 			return new Response(JSON.stringify({ error: String(error) }), {
 				status: 400,
 				headers: { "content-type": "application/json" },
@@ -102,19 +92,14 @@ export class SSETransport implements Transport {
 	}
 
 	async handleMessage(message: JSONRPCMessage): Promise<void> {
-		let parsedMessage: JSONRPCMessage;
 		try {
-			parsedMessage = JSONRPCMessageSchema.parse(message);
+			const parsedMessage = JSONRPCMessageSchema.parse(message);
+			this.onmessage?.(parsedMessage);
 		} catch (error) {
-			console.error(
-				`[Transport:${this.#sessionId}] Invalid message format:`,
-				error,
-			);
-			this.onerror?.(error instanceof Error ? error : new Error(String(error)));
+			this.#logError("invalid message format", error);
+			this.#handleError(error);
 			throw error;
 		}
-
-		this.onmessage?.(parsedMessage);
 	}
 
 	async close(): Promise<void> {
@@ -122,16 +107,34 @@ export class SSETransport implements Transport {
 		this.onclose?.();
 	}
 
+	async [Symbol.asyncDispose](): Promise<void> {
+		await this.close();
+	}
+
 	async send(message: JSONRPCMessage): Promise<void> {
 		if (!this.#connected) {
-			console.error(`[Transport:${this.#sessionId}] Not connected`);
-			throw new Error("Not connected");
+			const error = new Error("not connected");
+			this.#logError(error.message);
+			throw error;
 		}
 
-		this._sendEvent("message", JSON.stringify(message));
+		this.#sendEvent("message", JSON.stringify(message));
 	}
 
 	get sessionId(): string {
 		return this.#sessionId;
+	}
+
+	#logError(message: string, error?: unknown): void {
+		const prefix = `[transport:${this.#sessionId}]`;
+		if (error) {
+			console.error(prefix, message, error);
+		} else {
+			console.error(prefix, message);
+		}
+	}
+
+	#handleError(error: unknown): void {
+		this.onerror?.(error instanceof Error ? error : new Error(String(error)));
 	}
 }

@@ -134,6 +134,12 @@ async function runHttp() {
 				const transport = new SSETransport("/messages");
 				transports.set(transport.sessionId, transport);
 				
+				// cleanup when connection closes
+				transport.onclose = () => {
+					transports.delete(transport.sessionId);
+					console.error(`[sse] transport ${transport.sessionId} closed, cleaned up from map`);
+				};
+				
 				await server.connect(transport);
 				
 				return new Response(transport.stream);
