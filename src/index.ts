@@ -1,16 +1,16 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { JSONRPCMessageSchema } from "@modelcontextprotocol/sdk/types.js";
 import Elysia, { status, t } from "elysia";
+import { mcp } from "elysia-mcp";
 import { z } from "zod";
 import { getAccountTransactions, listAccounts } from "./mercury";
 import {
 	TransactionSchema,
 	TransactionStatusSchema,
 } from "./schemas/list-account-transactions";
-import { mcp } from "elysia-mcp";
 import { AccountSchema } from "./schemas/list-accounts";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSETransport } from "./transport";
-import { JSONRPCMessageSchema } from "@modelcontextprotocol/sdk/types.js";
 
 function createServer() {
 	const server = new McpServer({
@@ -233,8 +233,10 @@ async function main() {
 		for (const signal of ["SIGINT", "SIGTERM"]) {
 			process.on(signal, async () => {
 				console.info(`${signal} received, shutting down...`);
-				await Promise.all(Array.from(transports.values()).map(transport => transport.close()));
-				await app.server?.stop(true);
+				await Promise.all(
+					Array.from(transports.values()).map((transport) => transport.close()),
+				);
+				await app.stop(true);
 				process.exit(0);
 			});
 		}
